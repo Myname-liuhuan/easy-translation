@@ -10,11 +10,20 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "easy-translation",
-        "width": 800,
-        "height": 600
+        "label": "main",
+        "title": "Easy Translation",
+        "width": 600,
+        "height": 400,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "center": true
       }
     ],
     "security": {

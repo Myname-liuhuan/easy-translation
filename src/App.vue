@@ -1,160 +1,175 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { watch } from 'vue';
+import { useTranslation } from './composables/useTranslation';
+import { useDebounce } from './composables/useDebounce';
+import { useWindowManager } from './composables/useWindowManager';
 
-const greetMsg = ref("");
-const name = ref("");
+const { input, output, loading, error, translate } = useTranslation();
+const debouncedInput = useDebounce(input, 300);
 
-async function greet() {
-  // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-  greetMsg.value = await invoke("greet", { name: name.value });
-}
+// Initialize window manager (global shortcut, blur listener, ESC listener)
+useWindowManager();
+
+// Watch debounced input and translate
+watch(debouncedInput, (newValue) => {
+  translate(newValue);
+});
 </script>
 
 <template>
-  <main class="container">
-    <h1>Welcome to Tauri + Vue</h1>
-
-    <div class="row">
-      <a href="https://vite.dev" target="_blank">
-        <img src="/vite.svg" class="logo vite" alt="Vite logo" />
-      </a>
-      <a href="https://tauri.app" target="_blank">
-        <img src="/tauri.svg" class="logo tauri" alt="Tauri logo" />
-      </a>
-      <a href="https://vuejs.org/" target="_blank">
-        <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-      </a>
+  <div class="app-container">
+    <!-- Custom title bar with drag region -->
+    <div class="title-bar" data-tauri-drag-region>
+      <span class="title">Easy Translation</span>
+      <span class="shortcut-hint">⌥T / Alt+T</span>
     </div>
-    <p>Click on the Tauri, Vite, and Vue logos to learn more.</p>
 
-    <form class="row" @submit.prevent="greet">
-      <input id="greet-input" v-model="name" placeholder="Enter a name..." />
-      <button type="submit">Greet</button>
-    </form>
-    <p>{{ greetMsg }}</p>
-  </main>
+    <!-- Main content -->
+    <div class="content">
+      <!-- Input area -->
+      <div class="input-section">
+        <textarea
+          v-model="input"
+          placeholder="Enter text to translate..."
+          class="input-textarea"
+          autofocus
+        ></textarea>
+      </div>
+
+      <!-- Divider -->
+      <div class="divider"></div>
+
+      <!-- Output area -->
+      <div class="output-section">
+        <div v-if="loading" class="loading">Translating...</div>
+        <div v-else-if="error" class="error">{{ error }}</div>
+        <div v-else-if="output" class="output-text">{{ output }}</div>
+        <div v-else class="placeholder">Translation will appear here</div>
+      </div>
+    </div>
+  </div>
 </template>
 
-<style scoped>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #249b73);
-}
-
-</style>
 <style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 :root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #e0e0e0;
+  background-color: #1a1a1a;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
 }
 
-.container {
-  margin: 0;
-  padding-top: 10vh;
+body {
+  background-color: transparent;
+  overflow: hidden;
+}
+
+.app-container {
+  width: 100vw;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
+  background-color: #1a1a1a;
   border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.title-bar {
+  height: 32px;
+  background-color: #252525;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  border-bottom: 1px solid #333;
+  user-select: none;
+}
+
+.title {
+  font-size: 12px;
   font-weight: 500;
+  color: #999;
+}
+
+.shortcut-hint {
+  font-size: 11px;
+  color: #666;
+}
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.input-section {
+  flex: 1;
+  padding: 12px;
+  display: flex;
+  overflow: hidden;
+}
+
+.input-textarea {
+  width: 100%;
+  height: 100%;
+  background-color: #1a1a1a;
+  border: none;
+  color: #e0e0e0;
   font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
+  font-size: 14px;
+  line-height: 1.6;
+  resize: none;
   outline: none;
 }
 
-#greet-input {
-  margin-right: 5px;
+.input-textarea::placeholder {
+  color: #555;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
+.divider {
+  height: 1px;
+  background-color: #333;
+  margin: 0 12px;
 }
 
+.output-section {
+  flex: 1;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.output-text {
+  color: #e0e0e0;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.placeholder {
+  color: #555;
+  font-size: 14px;
+}
+
+.loading {
+  color: #888;
+  font-size: 14px;
+}
+
+.error {
+  color: #ff6b6b;
+  font-size: 14px;
+}
 </style>
