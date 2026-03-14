@@ -8,10 +8,20 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager,
 };
+use tauri_plugin_log::{Builder as LogBuilder, Target, TargetKind};
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[cfg_attr(mobile, tauri::mobile_entrypoint)]
 pub fn run() {
+    // Initialize translation module (load .env file)
+    translator::init();
+
     tauri::Builder::default()
+        .plugin(LogBuilder::new()
+            .targets([
+                Target::new(TargetKind::Stdout),
+                Target::new(TargetKind::Webview),
+            ])
+            .build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![translate_text])
