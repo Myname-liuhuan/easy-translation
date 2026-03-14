@@ -33,3 +33,5 @@ dotenvy = "0.15"
 md5 = "0.7"
 log = "0.4"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+cocoa = "0.26"

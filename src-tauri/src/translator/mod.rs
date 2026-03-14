@@ -17,8 +17,6 @@ pub enum TranslateError {
     #[error("Configuration error: {0}")]
     ConfigError(String),
 
-    #[error("No translation service available")]
-    NoServiceAvailable,
 }
 
 /// Translator trait for swappable translation implementations.

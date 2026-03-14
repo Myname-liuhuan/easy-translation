@@ -26,6 +26,26 @@ fn position_window_top_right(window: &tauri::WebviewWindow) -> Result<(), Box<dy
     Ok(())
 }
 
+/// Setup macOS window buttons (fullscreen instead of zoom)
+#[cfg(target_os = "macos")]
+#[allow(deprecated)]
+fn setup_macos_window_buttons(window: &tauri::WebviewWindow) {
+    use cocoa::appkit::{NSWindow, NSWindowCollectionBehavior};
+    use cocoa::base::id;
+
+    let ns_window = window.ns_window().unwrap() as id;
+    unsafe {
+        // Enable fullscreen: NSWindowCollectionBehaviorFullScreenPrimary (1 << 7)
+        //              | NSWindowCollectionBehaviorManaged (1 << 2)
+        let behavior = NSWindowCollectionBehavior::NSWindowCollectionBehaviorFullScreenPrimary
+            | NSWindowCollectionBehavior::NSWindowCollectionBehaviorManaged;
+        ns_window.setCollectionBehavior_(behavior);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn setup_macos_window_buttons(_window: &tauri::WebviewWindow) {}
+
 #[cfg_attr(mobile, tauri::mobile_entrypoint)]
 pub fn run() {
     // Initialize translation module (load .env file)
@@ -57,9 +77,10 @@ pub fn run() {
                 app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             }
 
-            // Position main window at top-right on first show
+            // Position main window at top-right and setup buttons
             if let Some(window) = app.get_webview_window("main") {
                 let _ = position_window_top_right(&window);
+                setup_macos_window_buttons(&window);
             }
 
             // Create quit menu item
