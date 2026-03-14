@@ -35,6 +35,12 @@ pub fn run() {
 
     builder
         .setup(|app| {
+            // Set activation policy to Accessory on macOS to hide from Dock
+            #[cfg(target_os = "macos")]
+            {
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            }
+
             // Create quit menu item
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
 
@@ -45,14 +51,14 @@ pub fn run() {
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
-                .show_menu_on_left_click(true)
+                .show_menu_on_left_click(false) // Only show menu on right click
                 .on_menu_event(|app: &AppHandle, event| {
                     if event.id.as_ref() == "quit" {
                         app.exit(0);
                     }
                 })
                 .on_tray_icon_event(|tray: &tauri::tray::TrayIcon, event: TrayIconEvent| {
-                    // Show window on left click (if not on menu)
+                    // Show window on left click
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
@@ -61,12 +67,26 @@ pub fn run() {
                     {
                         if let Some(window) = tray.app_handle().get_webview_window("main") {
                             let _ = window.show();
-                            let _ = window.center();
                             let _ = window.set_focus();
                         }
                     }
                 })
                 .build(app)?;
+
+            // Listen for window close event and hide instead of closing
+            let app_handle = app.app_handle().clone();
+            if let Some(window) = app.get_webview_window("main") {
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        // Prevent the window from closing
+                        api.prevent_close();
+                        // Hide the window instead
+                        if let Some(win) = app_handle.get_webview_window("main") {
+                            let _ = win.hide();
+                        }
+                    }
+                });
+            }
 
             Ok(())
         })

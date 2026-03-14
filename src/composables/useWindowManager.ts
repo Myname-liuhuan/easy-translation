@@ -41,7 +41,6 @@ export function useWindowManager() {
     try {
       console.log('Showing window...');
       await appWindow.show();
-      await appWindow.center();
       await appWindow.setFocus();
       console.log('Window shown');
     } catch (error) {

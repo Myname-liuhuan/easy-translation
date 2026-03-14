@@ -17,10 +17,7 @@
         "title": "Easy Translation",
         "width": 600,
         "height": 400,
-        "resizable": false,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
+        "resizable": true,
         "skipTaskbar": true,
         "visible": false,
         "center": true

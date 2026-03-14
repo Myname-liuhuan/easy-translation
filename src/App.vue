@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { watch } from 'vue';
+import { computed, watch } from 'vue';
 import { useTranslation } from './composables/useTranslation';
 import { useDebounce } from './composables/useDebounce';
 import { useWindowManager } from './composables/useWindowManager';
@@ -19,9 +18,9 @@ const isMac = computed(() => {
 
 const shortcutHint = computed(() => {
   if (isMac.value) {
-    return { parts: ['⌘', '+', '⌥', '+', 'T'], isMac: true };
+    return '⌘ + ⌥ + T';
   }
-  return { parts: ['Ctrl+Alt+T'], isMac: false };
+  return 'Ctrl + Alt + T';
 });
 
 // Watch debounced input and translate
@@ -32,19 +31,6 @@ watch(debouncedInput, (newValue) => {
 
 <template>
   <div class="app-container">
-    <!-- Custom title bar with drag region -->
-    <div class="title-bar" data-tauri-drag-region>
-      <span class="title">Easy Translation</span>
-      <span class="shortcut-hint">
-        <template v-if="shortcutHint.isMac">
-          <span class="symbol">{{ shortcutHint.parts[0] }}</span><span class="text">{{ shortcutHint.parts[1] }}</span><span class="symbol">{{ shortcutHint.parts[2] }}</span><span class="text">{{ shortcutHint.parts[3] }}</span><span class="letter">{{ shortcutHint.parts[4] }}</span>
-        </template>
-        <template v-else>
-          {{ shortcutHint.parts[0] }}
-        </template>
-      </span>
-    </div>
-
     <!-- Main content -->
     <div class="content">
       <!-- Input area -->
@@ -81,6 +67,11 @@ watch(debouncedInput, (newValue) => {
           <span v-else class="placeholder">翻译结果将显示在这里</span>
         </div>
       </div>
+    </div>
+
+    <!-- Footer status bar -->
+    <div class="footer-bar">
+      <span class="shortcut-hint">{{ shortcutHint }} 快速唤起</span>
     </div>
   </div>
 </template>
@@ -120,51 +111,6 @@ html, body, #app {
   opacity: 0.03;
   pointer-events: none;
   z-index: 0;
-}
-
-.title-bar {
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  background: rgba(255, 255, 255, 0.02);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  position: relative;
-  z-index: 1;
-  user-select: none;
-}
-
-.title {
-  font-size: 13px;
-  font-weight: 500;
-  color: #888;
-  letter-spacing: 0.5px;
-}
-
-.shortcut-hint {
-  font-size: 11px;
-  color: #555;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-family: 'SF Mono', Monaco, monospace;
-  letter-spacing: 0.5px;
-  display: inline-flex;
-  align-items: baseline;
-}
-
-.shortcut-hint .symbol {
-  font-size: 14px;
-  vertical-align: top;
-  /* 特殊符号微调，保持视觉平衡 */
-  transform: translateY(1px);
-}
-.shortcut-hint .text {
-  font-size: 11px;
-}
-.shortcut-hint .letter {
-  font-size: 11px;
 }
 
 .content {
@@ -286,7 +232,26 @@ html, body, #app {
 }
 
 .output-section {
-  padding-bottom: 8px;
+  padding-bottom: 0;
+}
+
+.footer-bar {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.shortcut-hint {
+  font-size: 11px;
+  color: #555;
+  font-family: 'SF Mono', Monaco, 'Noto Sans SC', monospace;
+  letter-spacing: 0.3px;
 }
 
 .output-content {
