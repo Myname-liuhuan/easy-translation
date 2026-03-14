@@ -1,14 +1,28 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { watch } from 'vue';
 import { useTranslation } from './composables/useTranslation';
 import { useDebounce } from './composables/useDebounce';
 import { useWindowManager } from './composables/useWindowManager';
 
-const { input, output, loading, error, translate } = useTranslation();
+const { input, output, loading, error, fromLang, toLang, translate } = useTranslation();
 const debouncedInput = useDebounce(input, 300);
 
 // Initialize window manager (global shortcut, blur listener, ESC listener)
 useWindowManager();
+
+// Detect platform and show appropriate shortcut
+const isMac = computed(() => {
+  return navigator.platform.toLowerCase().includes('mac') ||
+         navigator.userAgent.toLowerCase().includes('mac');
+});
+
+const shortcutHint = computed(() => {
+  if (isMac.value) {
+    return { parts: ['⌘', '+', '⌥', '+', 'T'], isMac: true };
+  }
+  return { parts: ['Ctrl+Alt+T'], isMac: false };
+});
 
 // Watch debounced input and translate
 watch(debouncedInput, (newValue) => {
@@ -21,155 +35,329 @@ watch(debouncedInput, (newValue) => {
     <!-- Custom title bar with drag region -->
     <div class="title-bar" data-tauri-drag-region>
       <span class="title">Easy Translation</span>
-      <span class="shortcut-hint">⌥T / Alt+T</span>
+      <span class="shortcut-hint">
+        <template v-if="shortcutHint.isMac">
+          <span class="symbol">{{ shortcutHint.parts[0] }}</span><span class="text">{{ shortcutHint.parts[1] }}</span><span class="symbol">{{ shortcutHint.parts[2] }}</span><span class="text">{{ shortcutHint.parts[3] }}</span><span class="letter">{{ shortcutHint.parts[4] }}</span>
+        </template>
+        <template v-else>
+          {{ shortcutHint.parts[0] }}
+        </template>
+      </span>
     </div>
 
     <!-- Main content -->
     <div class="content">
       <!-- Input area -->
       <div class="input-section">
+        <div class="section-header">
+          <span v-if="fromLang" class="lang-tag">{{ fromLang }}</span>
+        </div>
         <textarea
           v-model="input"
-          placeholder="Enter text to translate..."
+          placeholder="输入要翻译的文本..."
           class="input-textarea"
           autofocus
         ></textarea>
       </div>
 
-      <!-- Divider -->
-      <div class="divider"></div>
+      <!-- Animated divider -->
+      <div class="divider">
+        <div class="divider-line"></div>
+        <div class="divider-glow"></div>
+      </div>
 
       <!-- Output area -->
       <div class="output-section">
-        <div v-if="loading" class="loading">Translating...</div>
-        <div v-else-if="error" class="error">{{ error }}</div>
-        <div v-else-if="output" class="output-text">{{ output }}</div>
-        <div v-else class="placeholder">Translation will appear here</div>
+        <div class="section-header">
+          <span v-if="toLang" class="lang-tag">{{ toLang }}</span>
+        </div>
+        <div class="output-content">
+          <span v-if="loading" class="loading">
+            <span class="loading-dot"></span>
+            翻译中...
+          </span>
+          <span v-else-if="error" class="error">{{ error }}</span>
+          <span v-else-if="output" class="output-text">{{ output }}</span>
+          <span v-else class="placeholder">翻译结果将显示在这里</span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style>
+/* Import elegant Chinese-friendly font */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500&display=swap');
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-:root {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #e0e0e0;
-  background-color: #1a1a1a;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-body {
-  background-color: transparent;
+html, body, #app {
+  height: 100%;
   overflow: hidden;
 }
 
 .app-container {
-  width: 100vw;
-  height: 100vh;
+  height: 100%;
+  background: linear-gradient(145deg, #0a0a0f 0%, #12121a 50%, #0d0d14 100%);
   display: flex;
   flex-direction: column;
-  background-color: #1a1a1a;
-  border-radius: 8px;
+  font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #e8e8ed;
+  position: relative;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Subtle noise texture overlay */
+.app-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .title-bar {
-  height: 32px;
-  background-color: #252525;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
-  border-bottom: 1px solid #333;
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+  z-index: 1;
   user-select: none;
 }
 
 .title {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
-  color: #999;
+  color: #888;
+  letter-spacing: 0.5px;
 }
 
 .shortcut-hint {
   font-size: 11px;
-  color: #666;
+  color: #555;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-family: 'SF Mono', Monaco, monospace;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: baseline;
+}
+
+.shortcut-hint .symbol {
+  font-size: 14px;
+  vertical-align: top;
+  /* 特殊符号微调，保持视觉平衡 */
+  transform: translateY(1px);
+}
+.shortcut-hint .text {
+  font-size: 11px;
+}
+.shortcut-hint .letter {
+  font-size: 11px;
 }
 
 .content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  min-height: 0;
 }
 
-.input-section {
+.input-section,
+.output-section {
   flex: 1;
-  padding: 12px;
   display: flex;
-  overflow: hidden;
+  flex-direction: column;
+  position: relative;
+  min-height: 0;
+}
+
+.section-header {
+  height: 28px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.lang-tag {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1));
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  transition: all 0.3s ease;
+}
+
+.lang-tag:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(139, 92, 246, 0.2));
+  border-color: rgba(139, 92, 246, 0.4);
 }
 
 .input-textarea {
-  width: 100%;
-  height: 100%;
-  background-color: #1a1a1a;
+  flex: 1;
+  background: transparent;
   border: none;
-  color: #e0e0e0;
+  padding: 0 16px 12px;
   font-family: inherit;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 15px;
+  line-height: 1.7;
   resize: none;
   outline: none;
+  color: #e8e8ed;
+  min-height: 0;
 }
 
 .input-textarea::placeholder {
-  color: #555;
+  color: #444;
+  transition: color 0.3s ease;
 }
 
+.input-textarea:focus::placeholder {
+  color: #333;
+}
+
+/* Animated divider with glow effect */
 .divider {
+  position: relative;
+  height: 2px;
+  flex-shrink: 0;
+  padding: 0 24px;
+}
+
+.divider-line {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 50%;
   height: 1px;
-  background-color: #333;
-  margin: 0 12px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(99, 102, 241, 0.3) 20%,
+    rgba(139, 92, 246, 0.5) 50%,
+    rgba(99, 102, 241, 0.3) 80%,
+    transparent 100%
+  );
+}
+
+.divider-glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 120px;
+  height: 6px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(139, 92, 246, 0.4) 0%,
+    rgba(99, 102, 241, 0.2) 40%,
+    transparent 70%
+  );
+  animation: pulse 3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: translate(-50%, -50%) scaleX(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scaleX(1.3);
+  }
 }
 
 .output-section {
+  padding-bottom: 8px;
+}
+
+.output-content {
   flex: 1;
-  padding: 12px;
+  padding: 0 16px 12px;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .output-text {
-  color: #e0e0e0;
-  font-size: 14px;
-  line-height: 1.6;
+  color: #e8e8ed;
+  font-size: 15px;
+  line-height: 1.7;
   white-space: pre-wrap;
   word-wrap: break-word;
+  user-select: text;
 }
 
 .placeholder {
-  color: #555;
+  color: #444;
   font-size: 14px;
+  font-style: italic;
 }
 
 .loading {
-  color: #888;
+  color: #666;
   font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-dot {
+  width: 6px;
+  height: 6px;
+  background: rgba(139, 92, 246, 0.8);
+  border-radius: 50%;
+  animation: bounce 1.4s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .error {
-  color: #ff6b6b;
+  color: #f87171;
   font-size: 14px;
+}
+
+/* Custom scrollbar */
+.output-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.output-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.output-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.output-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 </style>
