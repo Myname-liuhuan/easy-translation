@@ -1,6 +1,7 @@
 import { onMounted, onUnmounted } from 'vue';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { invoke } from '@tauri-apps/api/core';
 
 const appWindow = getCurrentWindow();
 
@@ -42,6 +43,8 @@ export function useWindowManager() {
       console.log('Showing window...');
       await appWindow.show();
       await appWindow.setFocus();
+      // Show in Dock when window is shown
+      await invoke('set_dock_visibility', { visible: true });
       console.log('Window shown');
     } catch (error) {
       console.error('Failed to show window:', error);
@@ -52,6 +55,7 @@ export function useWindowManager() {
     try {
       console.log('Hiding window...');
       await appWindow.hide();
+      // Don't hide from Dock - this is a "background" operation
       console.log('Window hidden');
     } catch (error) {
       console.error('Failed to hide window:', error);

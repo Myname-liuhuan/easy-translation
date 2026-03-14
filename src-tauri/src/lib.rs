@@ -6,9 +6,44 @@ use commands::translate::translate_text;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, Position, PhysicalPosition,
+    AppHandle, Emitter, Manager, Position, PhysicalPosition,
 };
 use tauri_plugin_log::{Builder as LogBuilder, Target, TargetKind};
+
+/// Tauri command to set activation policy (show/hide from Dock)
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn set_dock_visibility(app: AppHandle, visible: bool) {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication, NSApplicationActivationOptions};
+
+    let policy = if visible {
+        tauri::ActivationPolicy::Regular
+    } else {
+        tauri::ActivationPolicy::Accessory
+    };
+    let _ = app.set_activation_policy(policy);
+
+    // Use objc2 API to properly update Dock icon
+    let mtm = MainThreadMarker::new().expect("must be on main thread");
+    let ns_app = NSApplication::sharedApplication(mtm);
+    let cocoa_policy = if visible {
+        NSApplicationActivationPolicy::Regular
+    } else {
+        NSApplicationActivationPolicy::Accessory
+    };
+    ns_app.setActivationPolicy(cocoa_policy);
+    if visible {
+        // Unhide and activate the app to refresh Dock icon
+        let running_app = NSRunningApplication::currentApplication();
+        let _ = running_app.unhide();
+        running_app.activateWithOptions(NSApplicationActivationOptions::ActivateAllWindows);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn set_dock_visibility(_app: AppHandle, _visible: bool) {}
 
 /// Position window at top-right corner with 100px padding
 fn position_window_top_right(window: &tauri::WebviewWindow) -> Result<(), Box<dyn std::error::Error>> {
@@ -28,18 +63,18 @@ fn position_window_top_right(window: &tauri::WebviewWindow) -> Result<(), Box<dy
 
 /// Setup macOS window buttons (fullscreen instead of zoom)
 #[cfg(target_os = "macos")]
-#[allow(deprecated)]
 fn setup_macos_window_buttons(window: &tauri::WebviewWindow) {
-    use cocoa::appkit::{NSWindow, NSWindowCollectionBehavior};
-    use cocoa::base::id;
+    use objc2::runtime::AnyObject;
+    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
 
-    let ns_window = window.ns_window().unwrap() as id;
+    let ns_window_ptr = window.ns_window().unwrap();
+    let ns_window = unsafe { &*(ns_window_ptr as *const AnyObject) };
     unsafe {
-        // Enable fullscreen: NSWindowCollectionBehaviorFullScreenPrimary (1 << 7)
-        //              | NSWindowCollectionBehaviorManaged (1 << 2)
-        let behavior = NSWindowCollectionBehavior::NSWindowCollectionBehaviorFullScreenPrimary
-            | NSWindowCollectionBehavior::NSWindowCollectionBehaviorManaged;
-        ns_window.setCollectionBehavior_(behavior);
+        // Enable fullscreen: FullScreenPrimary (1 << 7) | Managed (1 << 2)
+        let window: &NSWindow = AnyObject::downcast_ref(ns_window).expect("not an NSWindow");
+        let behavior = NSWindowCollectionBehavior::FullScreenPrimary
+            | NSWindowCollectionBehavior::Managed;
+        window.setCollectionBehavior(behavior);
     }
 }
 
@@ -54,7 +89,7 @@ pub fn run() {
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![translate_text]);
+        .invoke_handler(tauri::generate_handler![translate_text, set_dock_visibility]);
 
     // Only enable logging in debug builds
     #[cfg(debug_assertions)]
@@ -71,10 +106,10 @@ pub fn run() {
 
     builder
         .setup(|app| {
-            // Set activation policy to Accessory on macOS to hide from Dock
+            // Set activation policy to Regular on macOS to show in Dock
             #[cfg(target_os = "macos")]
             {
-                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                app.set_activation_policy(tauri::ActivationPolicy::Regular);
             }
 
             // Position main window at top-right and setup buttons
@@ -107,10 +142,27 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        if let Some(window) = tray.app_handle().get_webview_window("main") {
+                        let app_handle = tray.app_handle();
+                        if let Some(window) = app_handle.get_webview_window("main") {
                             let _ = position_window_top_right(&window);
                             let _ = window.show();
                             let _ = window.set_focus();
+                        }
+                        // Show in Dock when window is shown
+                        #[cfg(target_os = "macos")]
+                        {
+                            use objc2::MainThreadMarker;
+                            use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication, NSApplicationActivationOptions, NSRequestUserAttentionType};
+                            let mtm = MainThreadMarker::new().expect("must be on main thread");
+                            let ns_app = NSApplication::sharedApplication(mtm);
+                            // Set activation policy to regular first (show in Dock)
+                            ns_app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+                            // Request user attention to force refresh Dock icon
+                            ns_app.requestUserAttention(NSRequestUserAttentionType::InformationalRequest);
+                            // Unhide and activate the app
+                            let running_app = NSRunningApplication::currentApplication();
+                            let _ = running_app.unhide();
+                            running_app.activateWithOptions(NSApplicationActivationOptions::ActivateAllWindows);
                         }
                     }
                 })
@@ -123,10 +175,25 @@ pub fn run() {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         // Prevent the window from closing
                         api.prevent_close();
-                        // Hide the window instead
+                        // Hide the window first
                         if let Some(win) = app_handle.get_webview_window("main") {
                             let _ = win.hide();
                         }
+                        // Hide from Dock when window is closed
+                        #[cfg(target_os = "macos")]
+                        {
+                            use objc2::MainThreadMarker;
+                            use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication};
+                            let mtm = MainThreadMarker::new().expect("must be on main thread");
+                            let ns_app = NSApplication::sharedApplication(mtm);
+                            // Set activation policy to accessory (hide from Dock)
+                            ns_app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+                            // Also call hide on the running app
+                            let running_app = NSRunningApplication::currentApplication();
+                            running_app.hide();
+                        }
+                        // Emit event to frontend to clear data
+                        let _ = app_handle.emit("clear-data", ());
                     }
                 });
             }

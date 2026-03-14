@@ -1,14 +1,30 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed, watch, onMounted, onUnmounted } from 'vue';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useTranslation } from './composables/useTranslation';
 import { useDebounce } from './composables/useDebounce';
 import { useWindowManager } from './composables/useWindowManager';
 
-const { input, output, loading, error, fromLang, toLang, translate } = useTranslation();
+const { input, output, loading, error, fromLang, toLang, translate, clearData } = useTranslation();
 const debouncedInput = useDebounce(input, 300);
 
 // Initialize window manager (global shortcut, blur listener, ESC listener)
 useWindowManager();
+
+// Listen for clear-data event from backend
+let unlistenClearData: UnlistenFn | undefined;
+
+onMounted(async () => {
+  unlistenClearData = await listen('clear-data', () => {
+    clearData();
+  });
+});
+
+onUnmounted(() => {
+  if (unlistenClearData) {
+    unlistenClearData();
+  }
+});
 
 // Detect platform and show appropriate shortcut
 const isMac = computed(() => {

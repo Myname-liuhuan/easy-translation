@@ -53,6 +53,15 @@ export function useTranslation() {
     }
   };
 
+  const clearData = () => {
+    input.value = '';
+    output.value = '';
+    error.value = null;
+    fromLang.value = '';
+    toLang.value = '';
+    loading.value = false;
+  };
+
   return {
     input,
     output,
@@ -61,5 +70,6 @@ export function useTranslation() {
     fromLang,
     toLang,
     translate,
+    clearData,
   };
 }
