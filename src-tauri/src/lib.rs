@@ -15,16 +15,25 @@ pub fn run() {
     // Initialize translation module (load .env file)
     translator::init();
 
-    tauri::Builder::default()
-        .plugin(LogBuilder::new()
-            .targets([
-                Target::new(TargetKind::Stdout),
-                Target::new(TargetKind::Webview),
-            ])
-            .build())
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![translate_text])
+        .invoke_handler(tauri::generate_handler![translate_text]);
+
+    // Only enable logging in debug builds
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.plugin(
+            LogBuilder::new()
+                .targets([
+                    Target::new(TargetKind::Stdout),
+                    Target::new(TargetKind::Webview),
+                ])
+                .build(),
+        );
+    }
+
+    builder
         .setup(|app| {
             // Create quit menu item
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;

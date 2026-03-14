@@ -58,13 +58,17 @@ pub async fn translate_with_fallback(text: &str, from: &str, to: &str) -> Result
         match translator.translate(from, to, text).await {
             Ok(result) => return Ok(result),
             Err(e) => {
+                #[cfg(debug_assertions)]
                 log::warn!("Translator {} failed: {}", translator.name(), e);
+                let _ = e; // suppress unused variable warning in release
             }
         }
     }
 
     // Fallback to mock translator if all real services fail
+    #[cfg(debug_assertions)]
     log::warn!("All translation services failed, falling back to mock");
+
     let mock = mock::MockTranslator::new();
     mock.translate(from, to, text).await
 }
