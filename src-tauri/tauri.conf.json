@@ -19,8 +19,7 @@
         "height": 400,
         "resizable": true,
         "skipTaskbar": true,
-        "visible": false,
-        "center": true
+        "visible": false
       }
     ],
     "security": {

@@ -6,9 +6,25 @@ use commands::translate::translate_text;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager,
+    AppHandle, Manager, Position, PhysicalPosition,
 };
 use tauri_plugin_log::{Builder as LogBuilder, Target, TargetKind};
+
+/// Position window at top-right corner with 100px padding
+fn position_window_top_right(window: &tauri::WebviewWindow) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(monitor) = window.primary_monitor()? {
+        let monitor_size = monitor.size();
+        let monitor_position = monitor.position();
+        let window_size = window.outer_size()?;
+
+        let position = PhysicalPosition {
+            x: monitor_position.x + monitor_size.width as i32 - window_size.width as i32 - 100,
+            y: monitor_position.y + 100,
+        };
+        window.set_position(Position::Physical(position))?;
+    }
+    Ok(())
+}
 
 #[cfg_attr(mobile, tauri::mobile_entrypoint)]
 pub fn run() {
@@ -41,6 +57,11 @@ pub fn run() {
                 app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             }
 
+            // Position main window at top-right on first show
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = position_window_top_right(&window);
+            }
+
             // Create quit menu item
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
 
@@ -66,6 +87,7 @@ pub fn run() {
                     } = event
                     {
                         if let Some(window) = tray.app_handle().get_webview_window("main") {
+                            let _ = position_window_top_right(&window);
                             let _ = window.show();
                             let _ = window.set_focus();
                         }
