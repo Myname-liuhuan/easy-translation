@@ -13,9 +13,16 @@ use tauri_plugin_log::{Builder as LogBuilder, Target, TargetKind};
 /// Tauri command to set activation policy (show/hide from Dock)
 #[cfg(target_os = "macos")]
 #[tauri::command]
-fn set_dock_visibility(app: AppHandle, visible: bool) {
+async fn set_dock_visibility(app: AppHandle, visible: bool) {
     use objc2::MainThreadMarker;
     use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication, NSApplicationActivationOptions};
+
+    // Add delay before switching to reduce flicker
+    // Accessory -> Regular: delay after window is shown (handled by frontend)
+    // Regular -> Accessory: delay after window is hidden
+    if !visible {
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    }
 
     let policy = if visible {
         tauri::ActivationPolicy::Regular
@@ -69,13 +76,11 @@ fn setup_macos_window_buttons(window: &tauri::WebviewWindow) {
 
     let ns_window_ptr = window.ns_window().unwrap();
     let ns_window = unsafe { &*(ns_window_ptr as *const AnyObject) };
-    unsafe {
-        // Enable fullscreen: FullScreenPrimary (1 << 7) | Managed (1 << 2)
-        let window: &NSWindow = AnyObject::downcast_ref(ns_window).expect("not an NSWindow");
-        let behavior = NSWindowCollectionBehavior::FullScreenPrimary
-            | NSWindowCollectionBehavior::Managed;
-        window.setCollectionBehavior(behavior);
-    }
+    // Enable fullscreen: FullScreenPrimary (1 << 7) | Managed (1 << 2)
+    let window: &NSWindow = AnyObject::downcast_ref(ns_window).expect("not an NSWindow");
+    let behavior = NSWindowCollectionBehavior::FullScreenPrimary
+        | NSWindowCollectionBehavior::Managed;
+    window.setCollectionBehavior(behavior);
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -148,22 +153,12 @@ pub fn run() {
                             let _ = window.show();
                             let _ = window.set_focus();
                         }
-                        // Show in Dock when window is shown
-                        #[cfg(target_os = "macos")]
-                        {
-                            use objc2::MainThreadMarker;
-                            use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication, NSApplicationActivationOptions, NSRequestUserAttentionType};
-                            let mtm = MainThreadMarker::new().expect("must be on main thread");
-                            let ns_app = NSApplication::sharedApplication(mtm);
-                            // Set activation policy to regular first (show in Dock)
-                            ns_app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
-                            // Request user attention to force refresh Dock icon
-                            ns_app.requestUserAttention(NSRequestUserAttentionType::InformationalRequest);
-                            // Unhide and activate the app
-                            let running_app = NSRunningApplication::currentApplication();
-                            let _ = running_app.unhide();
-                            running_app.activateWithOptions(NSApplicationActivationOptions::ActivateAllWindows);
-                        }
+                        // Show in Dock with delay to reduce flicker
+                        let handle = app_handle.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(400));
+                            let _ = handle.emit("request-dock-visibility", true);
+                        });
                     }
                 })
                 .build(app)?;
@@ -179,19 +174,12 @@ pub fn run() {
                         if let Some(win) = app_handle.get_webview_window("main") {
                             let _ = win.hide();
                         }
-                        // Hide from Dock when window is closed
-                        #[cfg(target_os = "macos")]
-                        {
-                            use objc2::MainThreadMarker;
-                            use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy, NSRunningApplication};
-                            let mtm = MainThreadMarker::new().expect("must be on main thread");
-                            let ns_app = NSApplication::sharedApplication(mtm);
-                            // Set activation policy to accessory (hide from Dock)
-                            ns_app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
-                            // Also call hide on the running app
-                            let running_app = NSRunningApplication::currentApplication();
-                            running_app.hide();
-                        }
+                        // Hide from Dock when window is closed (with delay)
+                        let handle = app_handle.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(300));
+                            let _ = handle.emit("request-dock-visibility", false);
+                        });
                         // Emit event to frontend to clear data
                         let _ = app_handle.emit("clear-data", ());
                     }

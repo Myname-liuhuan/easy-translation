@@ -2,11 +2,13 @@ import { onMounted, onUnmounted } from 'vue';
 import { register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 
 const appWindow = getCurrentWindow();
 
 export function useWindowManager() {
   let removeEscListener: (() => void) | undefined;
+  let removeDockVisibilityListener: UnlistenFn | undefined;
   let lastToggleTime = 0;
   const TOGGLE_DEBOUNCE = 500; // ms
 
@@ -43,6 +45,8 @@ export function useWindowManager() {
       console.log('Showing window...');
       await appWindow.show();
       await appWindow.setFocus();
+      // Delay to allow window to render before switching to Regular mode (reduces flicker)
+      await new Promise(resolve => setTimeout(resolve, 400));
       // Show in Dock when window is shown
       await invoke('set_dock_visibility', { visible: true });
       console.log('Window shown');
@@ -82,6 +86,9 @@ export function useWindowManager() {
       if (removeEscListener) {
         removeEscListener();
       }
+      if (removeDockVisibilityListener) {
+        removeDockVisibilityListener();
+      }
     } catch (error) {
       console.error('Failed to cleanup:', error);
     }
@@ -90,6 +97,11 @@ export function useWindowManager() {
   onMounted(async () => {
     await setupGlobalShortcut();
     removeEscListener = setupEscListener();
+
+    // Listen for dock visibility requests from Rust (tray icon click, window close)
+    removeDockVisibilityListener = await listen<boolean>('request-dock-visibility', async (event) => {
+      await invoke('set_dock_visibility', { visible: event.payload });
+    });
   });
 
   onUnmounted(async () => {
