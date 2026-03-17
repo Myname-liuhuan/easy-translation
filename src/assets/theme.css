@@ -11,6 +11,7 @@
   --text-placeholder-focus: #333;
 
   --border-color: rgba(255, 255, 255, 0.05);
+  --border-subtle: rgba(255, 255, 255, 0.03);
   --border-tag: rgba(139, 92, 246, 0.2);
   --border-tag-hover: rgba(139, 92, 246, 0.4);
 
@@ -43,6 +44,7 @@
   --text-placeholder-focus: #888;
 
   --border-color: rgba(0, 0, 0, 0.05);
+  --border-subtle: rgba(0, 0, 0, 0.03);
   --border-tag: rgba(139, 92, 246, 0.15);
   --border-tag-hover: rgba(139, 92, 246, 0.3);
 

@@ -2,11 +2,25 @@
 import { computed, watch, onMounted, onUnmounted } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useTranslation } from './composables/useTranslation';
+import { useWordAnalysis } from './composables/useWordAnalysis';
 import { useDebounce } from './composables/useDebounce';
 import { useWindowManager } from './composables/useWindowManager';
 import { useTheme } from './composables/useTheme';
+import WordInfo from './components/WordInfo.vue';
+import TranslationResults from './components/TranslationResults.vue';
 
 const { input, output, loading, error, fromLang, toLang, translate, clearData } = useTranslation();
+const {
+  wordInfo,
+  translationResults,
+  selectedTranslation,
+  useLocalTranslation,
+  showTenses,
+  analyzeInput,
+  selectTranslation,
+  clearResults,
+  toggleTenses,
+} = useWordAnalysis();
 const debouncedInput = useDebounce(input, 300);
 
 // Initialize theme (system light/dark mode support)
@@ -21,6 +35,7 @@ let unlistenClearData: UnlistenFn | undefined;
 onMounted(async () => {
   unlistenClearData = await listen('clear-data', () => {
     clearData();
+    clearResults();
   });
 });
 
@@ -43,10 +58,45 @@ const shortcutHint = computed(() => {
   return 'Ctrl + Alt + T';
 });
 
-// Watch debounced input and translate
-watch(debouncedInput, (newValue) => {
-  translate(newValue);
+// Check if we should show word analysis
+const showWordInfo = computed(() => wordInfo.value !== null);
+const showTranslationResults = computed(() => translationResults.value.length > 0);
+
+// Watch debounced input - first analyze local dictionary, then decide on external API
+watch(debouncedInput, async (newValue) => {
+  if (!newValue) {
+    translate('');
+    analyzeInput(newValue);
+    return;
+  }
+
+  // First analyze input for local dictionary
+  await analyzeInput(newValue);
+
+  // If local dictionary has results, use them; otherwise call external API
+  if (useLocalTranslation.value && translationResults.value.length > 0) {
+    output.value = translationResults.value[0]?.word || '';
+  } else {
+    translate(newValue);
+  }
 });
+
+// Handle translation selection
+watch(selectedTranslation, (newValue) => {
+  if (newValue) {
+    output.value = newValue;
+  }
+});
+
+// Handle tense copy
+const handleTenseCopy = (form: string) => {
+  console.log('Copied:', form);
+};
+
+// Handle result selection
+const handleSelect = (word: string) => {
+  selectTranslation(word);
+};
 </script>
 
 <template>
@@ -64,6 +114,26 @@ watch(debouncedInput, (newValue) => {
           class="input-textarea"
           autofocus
         ></textarea>
+      </div>
+
+      <!-- Word Analysis Section -->
+      <div v-if="showWordInfo || showTranslationResults" class="analysis-section">
+        <!-- English word info with tenses -->
+        <WordInfo
+          v-if="showWordInfo"
+          :word-info="wordInfo!"
+          :show-tenses="showTenses"
+          @toggle-tenses="toggleTenses"
+          @copy="handleTenseCopy"
+        />
+
+        <!-- Chinese translation results -->
+        <TranslationResults
+          v-if="showTranslationResults"
+          :results="translationResults"
+          :selected-word="selectedTranslation"
+          @select="handleSelect"
+        />
       </div>
 
       <!-- Animated divider -->
@@ -244,6 +314,15 @@ html, body, #app {
 
 .output-section {
   padding-bottom: 0;
+}
+
+/* Word Analysis Section */
+.analysis-section {
+  padding: 0 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .footer-bar {

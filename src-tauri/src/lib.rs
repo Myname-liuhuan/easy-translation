@@ -2,12 +2,14 @@ mod commands;
 mod language_detect;
 mod translator;
 
+use commands::dict::{query_dict, query_dict_by_translation, save_dict_entry, DictState};
 use commands::translate::translate_text;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, Position, PhysicalPosition,
 };
+#[allow(unused_imports)]
 use tauri_plugin_log::{Builder as LogBuilder, Target, TargetKind};
 
 /// Tauri command to set activation policy (show/hide from Dock)
@@ -91,10 +93,11 @@ pub fn run() {
     // Initialize translation module (load .env file)
     translator::init();
 
+    #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![translate_text, set_dock_visibility]);
+        .invoke_handler(tauri::generate_handler![translate_text, set_dock_visibility, query_dict, query_dict_by_translation, save_dict_entry]);
 
     // Only enable logging in debug builds
     #[cfg(debug_assertions)]
@@ -111,6 +114,24 @@ pub fn run() {
 
     builder
         .setup(|app| {
+            // Initialize dictionary state with correct path
+            let resource_dir = app.path().resource_dir()
+                .expect("Failed to get resource directory");
+            let dict_path = resource_dir.join("dict/dict.db");
+
+            // In debug mode, also check current directory for development
+            #[cfg(debug_assertions)]
+            let dict_path = {
+                if dict_path.exists() {
+                    dict_path
+                } else {
+                    std::path::PathBuf::from("dict/dict.db")
+                }
+            };
+
+            let dict_state = DictState::new(dict_path.to_str().unwrap())
+                .expect("Failed to open dict.db");
+            app.manage(dict_state);
             // Set activation policy to Regular on macOS to show in Dock
             #[cfg(target_os = "macos")]
             {
