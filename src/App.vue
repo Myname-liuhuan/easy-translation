@@ -4,9 +4,13 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useTranslation } from './composables/useTranslation';
 import { useDebounce } from './composables/useDebounce';
 import { useWindowManager } from './composables/useWindowManager';
+import { useTheme } from './composables/useTheme';
 
 const { input, output, loading, error, fromLang, toLang, translate, clearData } = useTranslation();
 const debouncedInput = useDebounce(input, 300);
+
+// Initialize theme (system light/dark mode support)
+useTheme();
 
 // Initialize window manager (global shortcut, blur listener, ESC listener)
 useWindowManager();
@@ -93,6 +97,9 @@ watch(debouncedInput, (newValue) => {
 </template>
 
 <style>
+/* Import theme variables */
+@import './assets/theme.css';
+
 /* Import elegant Chinese-friendly font */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500&display=swap');
 
@@ -109,11 +116,11 @@ html, body, #app {
 
 .app-container {
   height: 100%;
-  background: linear-gradient(145deg, #0a0a0f 0%, #12121a 50%, #0d0d14 100%);
+  background: linear-gradient(145deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
   display: flex;
   flex-direction: column;
   font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
-  color: #e8e8ed;
+  color: var(--text-primary);
   position: relative;
   overflow: hidden;
 }
@@ -124,7 +131,7 @@ html, body, #app {
   position: absolute;
   inset: 0;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  opacity: 0.03;
+  opacity: var(--noise-opacity);
   pointer-events: none;
   z-index: 0;
 }
@@ -158,19 +165,19 @@ html, body, #app {
 .lang-tag {
   font-size: 10px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.5);
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1));
+  color: var(--text-secondary);
+  background: var(--accent-gradient);
   padding: 3px 10px;
   border-radius: 20px;
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  border: 1px solid var(--border-tag);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   transition: all 0.3s ease;
 }
 
 .lang-tag:hover {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(139, 92, 246, 0.2));
-  border-color: rgba(139, 92, 246, 0.4);
+  background: var(--accent-gradient-hover);
+  border-color: var(--border-tag-hover);
 }
 
 .input-textarea {
@@ -183,17 +190,17 @@ html, body, #app {
   line-height: 1.7;
   resize: none;
   outline: none;
-  color: #e8e8ed;
+  color: var(--text-primary);
   min-height: 0;
 }
 
 .input-textarea::placeholder {
-  color: #444;
+  color: var(--text-placeholder);
   transition: color 0.3s ease;
 }
 
 .input-textarea:focus::placeholder {
-  color: #333;
+  color: var(--text-placeholder-focus);
 }
 
 /* Animated divider with glow effect */
@@ -210,14 +217,7 @@ html, body, #app {
   right: 24px;
   top: 50%;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(99, 102, 241, 0.3) 20%,
-    rgba(139, 92, 246, 0.5) 50%,
-    rgba(99, 102, 241, 0.3) 80%,
-    transparent 100%
-  );
+  background: var(--divider-line);
 }
 
 .divider-glow {
@@ -227,12 +227,7 @@ html, body, #app {
   transform: translate(-50%, -50%);
   width: 120px;
   height: 6px;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(139, 92, 246, 0.4) 0%,
-    rgba(99, 102, 241, 0.2) 40%,
-    transparent 70%
-  );
+  background: var(--divider-glow);
   animation: pulse 3s ease-in-out infinite;
 }
 
@@ -256,8 +251,8 @@ html, body, #app {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.02);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--bg-footer);
+  border-top: 1px solid var(--border-color);
   position: relative;
   z-index: 1;
   flex-shrink: 0;
@@ -265,7 +260,7 @@ html, body, #app {
 
 .shortcut-hint {
   font-size: 11px;
-  color: #555;
+  color: var(--text-secondary);
   font-family: 'SF Mono', Monaco, 'Noto Sans SC', monospace;
   letter-spacing: 0.3px;
 }
@@ -278,7 +273,7 @@ html, body, #app {
 }
 
 .output-text {
-  color: #e8e8ed;
+  color: var(--text-primary);
   font-size: 15px;
   line-height: 1.7;
   white-space: pre-wrap;
@@ -287,13 +282,13 @@ html, body, #app {
 }
 
 .placeholder {
-  color: #444;
+  color: var(--text-placeholder);
   font-size: 14px;
   font-style: italic;
 }
 
 .loading {
-  color: #666;
+  color: var(--text-secondary);
   font-size: 14px;
   display: inline-flex;
   align-items: center;
@@ -303,7 +298,7 @@ html, body, #app {
 .loading-dot {
   width: 6px;
   height: 6px;
-  background: rgba(139, 92, 246, 0.8);
+  background: var(--accent-primary);
   border-radius: 50%;
   animation: bounce 1.4s ease-in-out infinite;
 }
@@ -320,7 +315,7 @@ html, body, #app {
 }
 
 .error {
-  color: #f87171;
+  color: var(--error);
   font-size: 14px;
 }
 
@@ -334,11 +329,11 @@ html, body, #app {
 }
 
 .output-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--scrollbar-thumb);
   border-radius: 2px;
 }
 
 .output-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--scrollbar-thumb-hover);
 }
 </style>
