@@ -153,7 +153,25 @@ const handleSelect = (word: string) => {
             翻译中...
           </span>
           <span v-else-if="error" class="error">{{ error }}</span>
-          <span v-else-if="output" class="output-text">{{ output }}</span>
+          <template v-else-if="output">
+            <div class="output-main">
+              <span class="output-text">{{ output }}</span>
+              <!-- Show phonetic and tenses for single word translations -->
+              <span v-if="wordInfo?.phonetic" class="output-phonetic">{{ wordInfo.phonetic }}</span>
+            </div>
+            <!-- Tenses section -->
+            <div v-if="wordInfo?.tenses && wordInfo.tenses.length > 0" class="output-tenses">
+              <div
+                v-for="(tense, index) in wordInfo.tenses"
+                :key="index"
+                class="tense-item"
+                @click="handleTenseCopy(tense.form)"
+              >
+                <span class="tense-form">{{ tense.form }}</span>
+                <span class="tense-desc">({{ tense.description }})</span>
+              </div>
+            </div>
+          </template>
           <span v-else class="placeholder">翻译结果将显示在这里</span>
         </div>
       </div>
@@ -351,6 +369,13 @@ html, body, #app {
   min-height: 0;
 }
 
+.output-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .output-text {
   color: var(--text-primary);
   font-size: 15px;
@@ -358,6 +383,50 @@ html, body, #app {
   white-space: pre-wrap;
   word-wrap: break-word;
   user-select: text;
+}
+
+.output-phonetic {
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.output-tenses {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tense-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tense-item:hover {
+  background: var(--accent-primary);
+}
+
+.tense-item:hover .tense-form,
+.tense-item:hover .tense-desc {
+  color: white;
+}
+
+.tense-form {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.tense-desc {
+  font-size: 10px;
+  color: var(--text-secondary);
 }
 
 .placeholder {
