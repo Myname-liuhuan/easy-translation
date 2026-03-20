@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, watch, onMounted, onUnmounted } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from './composables/useTranslation';
 import { useWordAnalysis } from './composables/useWordAnalysis';
 import { useDebounce } from './composables/useDebounce';
@@ -8,6 +9,23 @@ import { useWindowManager } from './composables/useWindowManager';
 import { useTheme } from './composables/useTheme';
 import WordInfo from './components/WordInfo.vue';
 import TranslationResults from './components/TranslationResults.vue';
+
+// Dictionary entry type for invoke result
+interface DictEntry {
+  word: string;
+  phonetic?: string;
+  definition?: string;
+  translation?: string;
+  pos?: string;
+  collins?: number;
+  oxford?: number;
+  tag?: string;
+  bnc?: number;
+  frq?: number;
+  exchange?: string;
+  detail?: string;
+  audio?: string;
+}
 
 const { input, output, loading, error, fromLang, toLang, translate, clearData } = useTranslation();
 const {
@@ -77,7 +95,64 @@ watch(debouncedInput, async (newValue) => {
   if (useLocalTranslation.value && translationResults.value.length > 0) {
     output.value = translationResults.value[0]?.word || '';
   } else {
-    translate(newValue);
+    // Use external API for translation
+    const prevOutput = output.value;
+    await translate(newValue);
+    
+    // If translation result is a single English word, query dict for phonetic/tenses
+    const translatedText = output.value;
+    if (translatedText && /^[a-zA-Z]+$/.test(translatedText.trim())) {
+      const word = translatedText.trim().toLowerCase();
+      try {
+        const entry = await invoke<DictEntry | null>('query_dict', { word });
+        if (entry) {
+          // Parse tenses from exchange field
+          const parseTenses = (exchange?: string) => {
+            if (!exchange) return [];
+            const tenses: { form: string; description: string }[] = [];
+            try {
+              const parsed = JSON.parse(exchange);
+              if (parsed.past) tenses.push({ form: parsed.past, description: '过去式' });
+              if (parsed.pastParticiple) tenses.push({ form: parsed.pastParticiple, description: '过去分词' });
+              if (parsed.presentParticiple) tenses.push({ form: parsed.presentParticiple, description: '现在分词' });
+              if (parsed.thirdPerson) tenses.push({ form: parsed.thirdPerson, description: '第三人称单数' });
+            } catch {
+              const parts = exchange.split(';');
+              for (const part of parts) {
+                const [key, value] = part.split(':');
+                if (key && value) {
+                  switch (key.trim()) {
+                    case 'p': tenses.push({ form: value.trim(), description: '过去式' }); break;
+                    case 'pp': tenses.push({ form: value.trim(), description: '过去分词' }); break;
+                    case 'ing': tenses.push({ form: value.trim(), description: '现在分词' }); break;
+                    case '3': tenses.push({ form: value.trim(), description: '第三人称单数' }); break;
+                  }
+                }
+              }
+            }
+            return tenses;
+          };
+          
+          const posMap: Record<string, string> = {
+            'n': '名词', 'noun': '名词', 'v': '动词', 'verb': '动词',
+            'adj': '形容词', 'adjective': '形容词', 'adv': '副词', 'adverb': '副词',
+          };
+          
+          const tenses = parseTenses(entry.exchange);
+          wordInfo.value = {
+            word: entry.word,
+            phonetic: entry.phonetic,
+            pos: entry.pos,
+            posChinese: posMap[entry.pos?.toLowerCase() || ''] || entry.pos || '',
+            translation: entry.translation,
+            collins: entry.collins,
+            tenses: tenses.length > 0 ? tenses : undefined,
+          };
+        }
+      } catch (e) {
+        console.error('Query dict error:', e);
+      }
+    }
   }
 });
 

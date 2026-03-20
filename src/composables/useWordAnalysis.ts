@@ -262,20 +262,18 @@ export function useWordAnalysis() {
         }));
         translationResults.value = resultsWithTenses;
         
-        // For single word translation, also set wordInfo for output display
-        if (results.length === 1) {
-          const firstResult = results[0];
-          const tenses = parseTenses(firstResult.exchange);
-          wordInfo.value = {
-            word: firstResult.word,
-            phonetic: firstResult.phonetic,
-            pos: firstResult.pos,
-            posChinese: posToChinese(firstResult.pos),
-            translation: firstResult.translation,
-            collins: firstResult.collins,
-            tenses: tenses.length > 0 ? tenses : undefined,
-          };
-        }
+        // Set wordInfo for output display (use first result)
+        const firstResult = results[0];
+        const tenses = parseTenses(firstResult.exchange);
+        wordInfo.value = {
+          word: firstResult.word,
+          phonetic: firstResult.phonetic,
+          pos: firstResult.pos,
+          posChinese: posToChinese(firstResult.pos),
+          translation: firstResult.translation,
+          collins: firstResult.collins,
+          tenses: tenses.length > 0 ? tenses : undefined,
+        };
         
         // Auto-select first result
         selectedTranslation.value = results[0].word;
