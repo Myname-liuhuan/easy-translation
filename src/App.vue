@@ -83,8 +83,14 @@ const shortcutHint = computed(() => {
 const showWordInfo = computed(() => wordInfo.value !== null);
 const showTranslationResults = computed(() => translationResults.value.length > 0);
 
+// 版本号，用于确保只有最新输入的异步操作结果才会被应用
+let watchVersion = 0;
+
 // Watch debounced input - first analyze local dictionary, then decide on external API
 watch(debouncedInput, async (newValue) => {
+  // 增加版本号
+  const currentVersion = ++watchVersion;
+
   if (!newValue) {
     translate('');
     analyzeInput(newValue);
@@ -95,19 +101,29 @@ watch(debouncedInput, async (newValue) => {
   // First analyze input for local dictionary
   await analyzeInput(newValue);
 
+  // 检查版本号，如果输入已变化则放弃本次操作
+  if (currentVersion !== watchVersion) return;
+
   // If local dictionary has results, use them; otherwise call external API
   if (useLocalTranslation.value && translationResults.value.length > 0) {
     output.value = translationResults.value[0]?.word || '';
   } else {
     // Use external API for translation
     await translate(newValue);
-    
+
+    // 检查版本号，如果输入已变化则放弃本次操作
+    if (currentVersion !== watchVersion) return;
+
     // If translation result is a single English word, query dict for phonetic/tenses
     const translatedText = output.value;
     if (translatedText && /^[a-zA-Z]+$/.test(translatedText.trim())) {
       const word = translatedText.trim().toLowerCase();
       try {
         const entry = await invoke<DictEntry | null>('query_dict', { word });
+
+        // 检查版本号，如果输入已变化则放弃本次操作
+        if (currentVersion !== watchVersion) return;
+
         if (entry) {
           // Parse tenses from exchange field
           const parseTenses = (exchange?: string) => {
@@ -135,12 +151,12 @@ watch(debouncedInput, async (newValue) => {
             }
             return tenses;
           };
-          
+
           const posMap: Record<string, string> = {
             'n': '名词', 'noun': '名词', 'v': '动词', 'verb': '动词',
             'adj': '形容词', 'adjective': '形容词', 'adv': '副词', 'adverb': '副词',
           };
-          
+
           const tenses = parseTenses(entry.exchange);
           outputWordInfo.value = {
             word: entry.word,

@@ -22,6 +22,9 @@ export function useTranslation() {
   const fromLang = ref('');
   const toLang = ref('');
 
+  // 请求版本号，用于确保只有最新请求的结果才会被应用
+  let requestId = 0;
+
   const getLanguageName = (code: string): string => {
     return languageNames[code] || code.toUpperCase();
   };
@@ -32,24 +35,38 @@ export function useTranslation() {
       error.value = null;
       fromLang.value = '';
       toLang.value = '';
+      requestId++; // 增加版本号，使之前的请求结果失效
       return;
     }
 
     loading.value = true;
     error.value = null;
 
+    // 记录当前请求的版本号
+    const currentRequestId = ++requestId;
+
     try {
       const result = await invoke<TranslationResult>('translate_text', { text });
-      output.value = result.text;
-      fromLang.value = getLanguageName(result.from);
-      toLang.value = getLanguageName(result.to);
+
+      // 只有当这是最新请求时才应用结果
+      if (currentRequestId === requestId) {
+        output.value = result.text;
+        fromLang.value = getLanguageName(result.from);
+        toLang.value = getLanguageName(result.to);
+      }
     } catch (e) {
-      error.value = String(e);
-      output.value = '';
-      fromLang.value = '';
-      toLang.value = '';
+      // 只有当这是最新请求时才应用错误
+      if (currentRequestId === requestId) {
+        error.value = String(e);
+        output.value = '';
+        fromLang.value = '';
+        toLang.value = '';
+      }
     } finally {
-      loading.value = false;
+      // 只有当这是最新请求时才更新 loading 状态
+      if (currentRequestId === requestId) {
+        loading.value = false;
+      }
     }
   };
 
@@ -60,6 +77,7 @@ export function useTranslation() {
     fromLang.value = '';
     toLang.value = '';
     loading.value = false;
+    requestId++; // 增加版本号，使之前的请求结果失效
   };
 
   return {
