@@ -61,13 +61,15 @@ const chineseRegex = /[\u4e00-\u9fff]/;
 const englishWordRegex = /^[a-zA-Z]+$/;
 
 export function useWordAnalysis() {
-  const wordInfo = ref<WordInfo | null>(null);
+  const wordInfo = ref<WordInfo | null>(null); // 用于输入区域（英文单词的音标/词性）
+  const outputWordInfo = ref<WordInfo | null>(null); // 用于输出区域（中文翻译成英文后的音标/词性）
   const translationResults = ref<TranslationResult[]>([]);
   const selectedTranslation = ref<string>('');
   const useLocalTranslation = ref(false);
   const loading = ref(false);
   const error = ref<string | null>(null);
   const showTenses = ref(false);
+  const showOutputTenses = ref(false); // 输出区域的时态展开状态
 
   // Detect input language and type
   const detectInput = (text: string): DetectionResult => {
@@ -261,11 +263,11 @@ export function useWordAnalysis() {
           posChinese: posToChinese(result.pos),
         }));
         translationResults.value = resultsWithTenses;
-        
-        // Set wordInfo for output display (use first result)
+
+        // Set outputWordInfo for output display (use first result)
         const firstResult = results[0];
         const tenses = parseTenses(firstResult.exchange);
-        wordInfo.value = {
+        outputWordInfo.value = {
           word: firstResult.word,
           phonetic: firstResult.phonetic,
           pos: firstResult.pos,
@@ -274,7 +276,7 @@ export function useWordAnalysis() {
           collins: firstResult.collins,
           tenses: tenses.length > 0 ? tenses : undefined,
         };
-        
+
         // Auto-select first result
         selectedTranslation.value = results[0].word;
         // Mark that we're using local translation
@@ -304,19 +306,27 @@ export function useWordAnalysis() {
   // Clear all results
   const clearResults = () => {
     wordInfo.value = null;
+    outputWordInfo.value = null;
     translationResults.value = [];
     selectedTranslation.value = '';
     error.value = null;
     showTenses.value = false;
+    showOutputTenses.value = false;
   };
 
-  // Toggle tenses display
+  // Toggle tenses display (input area)
   const toggleTenses = () => {
     showTenses.value = !showTenses.value;
   };
 
+  // Toggle output tenses display (output area)
+  const toggleOutputTenses = () => {
+    showOutputTenses.value = !showOutputTenses.value;
+  };
+
   return {
     wordInfo,
+    outputWordInfo,
     translationResults,
     selectedTranslation,
     useLocalTranslation,
@@ -324,10 +334,12 @@ export function useWordAnalysis() {
     loading,
     error,
     showTenses,
+    showOutputTenses,
     analyzeInput,
     selectTranslation,
     clearResults,
     toggleTenses,
+    toggleOutputTenses,
     saveToLocalDict,
   };
 }

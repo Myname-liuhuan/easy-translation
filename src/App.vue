@@ -30,14 +30,17 @@ interface DictEntry {
 const { input, output, loading, error, fromLang, toLang, translate, clearData } = useTranslation();
 const {
   wordInfo,
+  outputWordInfo,
   translationResults,
   selectedTranslation,
   useLocalTranslation,
   showTenses,
+  showOutputTenses,
   analyzeInput,
   selectTranslation,
   clearResults,
   toggleTenses,
+  toggleOutputTenses,
 } = useWordAnalysis();
 const debouncedInput = useDebounce(input, 300);
 
@@ -85,6 +88,7 @@ watch(debouncedInput, async (newValue) => {
   if (!newValue) {
     translate('');
     analyzeInput(newValue);
+    outputWordInfo.value = null; // 清空输出域的单词信息
     return;
   }
 
@@ -96,7 +100,6 @@ watch(debouncedInput, async (newValue) => {
     output.value = translationResults.value[0]?.word || '';
   } else {
     // Use external API for translation
-    const prevOutput = output.value;
     await translate(newValue);
     
     // If translation result is a single English word, query dict for phonetic/tenses
@@ -139,7 +142,7 @@ watch(debouncedInput, async (newValue) => {
           };
           
           const tenses = parseTenses(entry.exchange);
-          wordInfo.value = {
+          outputWordInfo.value = {
             word: entry.word,
             phonetic: entry.phonetic,
             pos: entry.pos,
@@ -156,10 +159,23 @@ watch(debouncedInput, async (newValue) => {
   }
 });
 
-// Handle translation selection
+// Handle translation selection - update outputWordInfo when selection changes
 watch(selectedTranslation, (newValue) => {
   if (newValue) {
     output.value = newValue;
+    // Update outputWordInfo based on selected translation
+    const selectedResult = translationResults.value.find(r => r.word === newValue);
+    if (selectedResult) {
+      outputWordInfo.value = {
+        word: selectedResult.word,
+        phonetic: selectedResult.phonetic,
+        pos: selectedResult.pos,
+        posChinese: selectedResult.posChinese,
+        translation: selectedResult.translation,
+        collins: selectedResult.collins,
+        tenses: selectedResult.tenses,
+      };
+    }
   }
 });
 
@@ -171,6 +187,27 @@ const handleTenseCopy = (form: string) => {
 // Handle result selection
 const handleSelect = (word: string) => {
   selectTranslation(word);
+};
+
+// POS color mapping for output area
+const getPosColor = (pos?: string): string => {
+  const colorMap: Record<string, string> = {
+    'n': '#8B5CF6',
+    'noun': '#8B5CF6',
+    'v': '#3B82F6',
+    'verb': '#3B82F6',
+    'adj': '#10B981',
+    'adjective': '#10B981',
+    'adv': '#F59E0B',
+    'adverb': '#F59E0B',
+    'prep': '#6B7280',
+    'preposition': '#6B7280',
+    'conj': '#06B6D4',
+    'conjunction': '#06B6D4',
+    'pron': '#EC4899',
+    'pronoun': '#EC4899',
+  };
+  return colorMap[pos?.toLowerCase() || ''] || '#9CA3AF';
 };
 </script>
 
@@ -231,20 +268,35 @@ const handleSelect = (word: string) => {
           <template v-else-if="output">
             <div class="output-main">
               <span class="output-text">{{ output }}</span>
-              <!-- Show phonetic and tenses for single word translations -->
-              <span v-if="wordInfo?.phonetic" class="output-phonetic">{{ wordInfo.phonetic }}</span>
             </div>
-            <!-- Tenses section -->
-            <div v-if="wordInfo?.tenses && wordInfo.tenses.length > 0" class="output-tenses">
-              <div
-                v-for="(tense, index) in wordInfo.tenses"
-                :key="index"
-                class="tense-item"
-                @click="handleTenseCopy(tense.form)"
-              >
-                <span class="tense-form">{{ tense.form }}</span>
-                <span class="tense-desc">({{ tense.description }})</span>
+            <!-- POS and tenses section for translated English word (Chinese to English only) -->
+            <div v-if="outputWordInfo && toLang === 'English'" class="output-word-info">
+              <div class="word-main">
+                <span class="pos-indicator" :style="{ backgroundColor: getPosColor(outputWordInfo.pos) }"></span>
+                <span class="pos-short">{{ outputWordInfo.pos || 'n.' }}</span>
+                <span v-if="outputWordInfo.phonetic" class="phonetic">{{ outputWordInfo.phonetic }}</span>
+                <span class="pos-chinese">{{ outputWordInfo.posChinese }}</span>
+                <button
+                  v-if="outputWordInfo.tenses && outputWordInfo.tenses.length > 0"
+                  class="tenses-toggle"
+                  @click="toggleOutputTenses"
+                >
+                  {{ showOutputTenses ? '▲' : '▼' }} 时态 ({{ outputWordInfo.tenses.length }})
+                </button>
               </div>
+              <Transition name="slide-fade">
+                <div v-if="showOutputTenses && outputWordInfo.tenses" class="output-tenses">
+                  <div
+                    v-for="(tense, index) in outputWordInfo.tenses"
+                    :key="index"
+                    class="tense-item"
+                    @click="handleTenseCopy(tense.form)"
+                  >
+                    <span class="tense-form">{{ tense.form }}</span>
+                    <span class="tense-desc">({{ tense.description }})</span>
+                  </div>
+                </div>
+              </Transition>
             </div>
           </template>
           <span v-else class="placeholder">翻译结果将显示在这里</span>
@@ -460,10 +512,61 @@ html, body, #app {
   user-select: text;
 }
 
-.output-phonetic {
+.output-word-info {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  animation: fadeIn 0.3s ease;
+}
+
+.output-word-info .word-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.output-word-info .pos-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.output-word-info .pos-short {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.output-word-info .phonetic {
   font-size: 13px;
   font-style: italic;
   color: var(--text-secondary);
+}
+
+.output-word-info .pos-chinese {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.output-word-info .tenses-toggle {
+  margin-left: auto;
+  padding: 4px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.output-word-info .tenses-toggle:hover {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
 }
 
 .output-tenses {
@@ -540,6 +643,32 @@ html, body, #app {
 .error {
   color: var(--error);
   font-size: 14px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Transition animations for tenses */
+.slide-fade-enter-active {
+  transition: all 0.3s ease-out;
+}
+
+.slide-fade-leave-active {
+  transition: all 0.2s ease-in;
+}
+
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  transform: translateY(-10px);
+  opacity: 0;
 }
 
 /* Custom scrollbar */
